@@ -3,10 +3,14 @@ import socket
 import time
 import threading
 import sys
-from queue import Queue  # and have queue management
+from queue import Queue
 from datetime import timedelta
 
 socket.setdefaulttimeout(0.5)
+
+# Port range
+minPort = 1
+maxPort = 65535
 
 # Prevents multi threading from incorrectly interfering with vars
 print_lock = threading.Lock()
@@ -33,9 +37,14 @@ def sockScan(port):
         # Open connection
         req = s.connect((host, port))
 
+        # Get potential service (based on /etc/services)
+        try:
+            service = socket.getservbyport(port)
+        except Exception as e:
+            service = "Unknown"
         # Print lock
         with print_lock:
-            print(port, 'is open')
+            print(str(port) + ' is open --> Maybe: ' + service)
 
         # Close connection
         req.close()
@@ -70,8 +79,9 @@ for x in range(200):
     # Start thread
     t.start()
 
+
 # Port range for thread
-for worker in range(1, 65535):
+for worker in range(minPort, maxPort):
     q.put(worker)
 
 # Wait for thread to end
