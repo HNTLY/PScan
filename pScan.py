@@ -1,54 +1,83 @@
 #!/usr/bin/env python3
 import socket
 import time
+import threading
 import sys
+from queue import Queue  # and have queue management
 from datetime import timedelta
 
-min_port = 1
-max_port = 65535
+socket.setdefaulttimeout(0.5)
 
-#Get host
+# Prevents multi threading from incorrectly interfering with vars
+print_lock = threading.Lock()
+
+# Get hostname/IP
 host = input("[+] Enter host name/IP: \n")
 
-#Get IP from hostname
-#If an IP is entered, it doesn't change
+# Converts hostname to IP (if not already given)
 host = socket.gethostbyname(host)
 
 print("\n" + "-" * 5 + " Scanning " + host + " " + "-" * 5 + "\n")
 
-#Start timer
+# Start timer
 start = time.monotonic()
 
-try:
-    for port in range(min_port, max_port):
 
-        #Create socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+# Define Port Scan process
+def sockScan(port):
+    # create socket object
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        #Get result of connection
-        res = s.connect_ex((host, port))
+    # Try connection
+    try:
+        # Open connection
+        req = s.connect((host, port))
 
-        #Success = open
-        if res == 0:
-            print("Port [" + str(port) + "]:     Open")
+        # Print lock
+        with print_lock:
+            print(port, 'is open')
 
-        #Close connection before opening new connection on next port
-        s.close()
+        # Close connection
+        req.close()
 
-#Error handling
-except KeyboardInterrupt:
-     print("\nCtrl+C pressed, exiting ..")
-     sys.exit()
-except socket.gaierror:
-    print("\nHostname unresolved, exiting ..")
-    sys.exit()
-except socket.error:
-    print("\nCouldn't connect to server, exiting ..")
-    sys.exit()     
+    except:
+        pass
 
-print("[+] Scan on " + host + " Complete\n")
 
-#Elapsed time
+# Define threading process
+def threader():
+    while True:
+        # Get thread from queue
+        thread = q.get()
+
+        # Run job with thread
+        sockScan(thread)
+
+        # Complete thread
+        q.task_done()
+
+
+# Create queue
+q = Queue()
+
+for x in range(200):
+    # Create each thread
+    t = threading.Thread(target=threader)
+
+    # Daemonise thread
+    t.daemon = True
+
+    # Start thread
+    t.start()
+
+# Port range for thread
+for worker in range(1, 65535):
+    q.put(worker)
+
+# Wait for thread to end
+q.join()
+
+# Elapsed time
 end = time.monotonic()
 elapsed = end - start
-print("Ports 1-65535 scanned in: " + str(timedelta(seconds=end-start)))
+print("Ports 1-65535 scanned in: " + str(timedelta(seconds=end - start)))
